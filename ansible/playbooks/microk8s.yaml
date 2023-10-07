@@ -1,0 +1,50 @@
+- name: Ensure specific strings are in /boot/cmdline.txt
+  hosts: cluster
+  gather_facts: false
+  become: true
+  vars:
+    required_lines:
+      - 'cgroup_memory=1'
+      - 'cgroup_enable=cpuset'
+      - 'cgroup_enable=memory'
+
+  tasks:
+  - name: Read existing /boot/cmdline.txt
+    ansible.builtin.slurp:
+      src: /boot/cmdline.txt
+    register: slurped_file
+
+  - name: Decode the base64 encoded content
+    set_fact:
+      cmdline_content: "{{ slurped_file['content'] | b64decode }}"
+  
+  - name: Add the string to /boot/cmdline.txt if not present
+    ansible.builtin.lineinfile:
+      path: /boot/cmdline.txt
+      line: "{{ cmdline_content + ' ' + item }}"
+      state: present
+    loop: "{{ required_lines }}"
+    when: item not in cmdline_content
+
+
+- name: Install MicroK8s on Cluster Nodes
+  hosts: cluster
+  gather_facts: false
+  become: true
+  tasks:
+  - name: Install snapd
+    apt:
+      name: snapd
+      update_cache: true
+      state: present
+
+  - name: Install MicroK8s
+    shell: sudo snap install microk8s --classic --channel=1.28/stable
+    register: microk8s_installation
+    changed_when: microk8s_installation.stdout.find('installed') != -1
+
+  - name: Add local user to microk8s group
+    user:
+      name: r4iny
+      groups: microk8s
+      append: true

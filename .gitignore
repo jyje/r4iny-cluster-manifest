@@ -1,0 +1,12 @@
+# for Mac
+.DS_Store
+._.DS_Store
+
+# for Python
+.python-version
+
+# for VSCode
+.vscode
+
+# for Ansible
+.ssh-cred

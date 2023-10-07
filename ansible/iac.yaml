@@ -1,0 +1,2 @@
+- import_playbook: playbooks/common.yaml
+- import_playbook: playbooks/microk8s.yaml
