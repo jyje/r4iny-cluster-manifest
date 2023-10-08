@@ -1,3 +1,13 @@
+- name: Preset
+  hosts: all
+  tasks:
+  - name: Import configuration
+    delegate_to: localhost
+    include_vars:
+      name: config 
+      file: "{{ playbook_dir }}/../config.yaml"
+
+
 - name: Ensure specific strings are in /boot/cmdline.txt
   hosts: cluster
   gather_facts: false
@@ -43,7 +53,7 @@
     ignore_errors: true
 
   - name: Install MicroK8s
-    shell: sudo snap install microk8s --classic --channel=1.28/stable
+    shell: "sudo snap install microk8s --classic --channel={{ config.microk8s.version }}/stable"
     register: microk8s_installation
     changed_when: microk8s_installation.stdout.find('installed') != -1
 
