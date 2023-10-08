@@ -10,3 +10,4 @@
 
 # for Ansible
 .ssh-cred
+artifacts/

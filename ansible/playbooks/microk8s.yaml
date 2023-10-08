@@ -38,6 +38,10 @@
       update_cache: true
       state: present
 
+  - name: Uninstall old MicroK8s
+    shell: sudo snap remove microk8s
+    ignore_errors: true
+
   - name: Install MicroK8s
     shell: sudo snap install microk8s --classic --channel=1.28/stable
     register: microk8s_installation
@@ -48,3 +52,47 @@
       name: r4iny
       groups: microk8s
       append: true
+
+
+- name: Get the first node in a node list and consider it the head node
+  hosts: cluster
+  gather_facts: false
+  serial: 1
+  tasks:
+  - name: "Join {{ inventory_hostname }} node"
+    when: inventory_hostname != groups['cluster'][0]
+    block:
+    - name: "Get join command from head node"
+      shell: echo "/snap/bin/$(/snap/bin/microk8s add-node | grep 'microk8s join' | head -n 1)"
+      register: join_node_command
+      delegate_to: "{{ groups['cluster'][0] }}"
+
+    - name: Join node to cluster
+      shell: "{{ join_node_command.stdout }}"
+
+
+- name: Get kubeconfig from the head node
+  hosts: cluster
+  gather_facts: false
+  tasks:
+  - name: Get kubeconfig from head node
+    run_once: true
+    block:
+    - name: Read kubeconfig from head node
+      delegate_to: "{{ groups['cluster'][0] }}"
+      shell: /snap/bin/microk8s config
+      register: kubeconfig
+
+    - name: Create artifacts directory
+      delegate_to: localhost
+      file:
+        path: "{{ playbook_dir }}/../../artifacts"
+        state: directory
+        mode: 0755
+
+    - name: Copy kubeconfig to local machine
+      delegate_to: localhost
+      copy:
+        content: "{{ kubeconfig.stdout }}"
+        dest: "{{ playbook_dir }}/../../artifacts/kubeconfig"
+        mode: 0600
