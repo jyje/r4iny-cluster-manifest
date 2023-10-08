@@ -1,2 +1,2 @@
 microk8s:
-  version: "1.28"
+  version: 1.28

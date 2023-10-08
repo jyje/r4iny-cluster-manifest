@@ -1,38 +1,38 @@
 - name: Common Setting for All Nodes
   hosts: all
   tasks:
-    - name: Get Raspberry Pi Model from /proc/device-tree/model
-      command: cat /proc/device-tree/model
-      register: node_raspi_model_raw
-      changed_when: false
+  - name: Get Raspberry Pi Model from /proc/device-tree/model
+    command: cat /proc/device-tree/model
+    register: node_raspi_model_raw
+    changed_when: false
 
-    - name: Get OS version from /etc/os-release
-      shell: grep 'PRETTY_NAME' /etc/os-release | cut -d '=' -f 2 | tr -d \"
-      register: node_raspi_os_raw
-      changed_when: false
+  - name: Get OS version from /etc/os-release
+    shell: grep 'PRETTY_NAME' /etc/os-release | cut -d '=' -f 2 | tr -d \"
+    register: node_raspi_os_raw
+    changed_when: false
 
-    - name: Convert fasts
-      set_fact:
-        raspi_info:
-          node_os_distribution: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
-          node_raspi_model: "{{ node_raspi_model_raw.stdout | replace('\u0000', '') }}"
-          node_raspi_os: "{{ node_raspi_os_raw.stdout }}"
-          node_raspi_architecture: "{{ ansible_architecture }}"
+  - name: Convert fasts
+    set_fact:
+      raspi_info:
+        node_os_distribution: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+        node_raspi_model: "{{ node_raspi_model_raw.stdout | replace('\u0000', '') }}"
+        node_raspi_os: "{{ node_raspi_os_raw.stdout }}"
+        node_raspi_architecture: "{{ ansible_architecture }}"
 
-    - name: Save Raspberry Pi's Information to JSON file
-      copy:
-        content: "{{ raspi_info | to_nice_json }}\n"
-        dest: ~/.ansible/raspi.json
+  - name: Save Raspberry Pi's Information to JSON file
+    copy:
+      content: "{{ raspi_info | to_nice_json }}\n"
+      dest: ~/.ansible/raspi.json
 
-    - name: Debug Raspberry Pi's Information
-      debug:
-        msg: "{{ raspi_info }}"
+  - name: Debug Raspberry Pi's Information
+    debug:
+      msg: "{{ raspi_info }}"
 
-    - name: Update cache and upgrade packages
-      become: true
-      retries: 3
-      apt:
-        update_cache: yes
-        upgrade: full
-        autoremove: yes
-        cache_valid_time: 3600
+  - name: Update cache and upgrade packages
+    become: true
+    retries: 3
+    apt:
+      update_cache: true
+      upgrade: full
+      autoremove: true
+      cache_valid_time: 3600
