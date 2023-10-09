@@ -1,0 +1,108 @@
+- name: Preset
+  hosts: all
+  tasks:
+  - name: Import configuration
+    delegate_to: localhost
+    include_vars:
+      name: config 
+      file: "{{ playbook_dir }}/../config.yaml"
+
+
+- name: Ensure specific strings are in /boot/cmdline.txt
+  hosts: cluster
+  gather_facts: false
+  become: true
+  vars:
+    required_lines:
+      - 'cgroup_memory=1'
+      - 'cgroup_enable=cpuset'
+      - 'cgroup_enable=memory'
+
+  tasks:
+  - name: Read existing /boot/cmdline.txt
+    ansible.builtin.slurp:
+      src: /boot/cmdline.txt
+    register: slurped_file
+
+  - name: Decode the base64 encoded content
+    set_fact:
+      cmdline_content: "{{ slurped_file['content'] | b64decode }}"
+  
+  - name: Add the string to /boot/cmdline.txt if not present
+    ansible.builtin.lineinfile:
+      path: /boot/cmdline.txt
+      line: "{{ cmdline_content + ' ' + item }}"
+      state: present
+    loop: "{{ required_lines }}"
+    when: item not in cmdline_content
+
+
+- name: Install MicroK8s on Cluster Nodes
+  hosts: cluster
+  gather_facts: false
+  become: true
+  tasks:
+  - name: Install snapd
+    apt:
+      name: snapd
+      update_cache: true
+      state: present
+
+  - name: Uninstall old MicroK8s
+    shell: sudo snap remove microk8s
+    ignore_errors: true
+
+  - name: Install MicroK8s
+    shell: "sudo snap install microk8s --classic --channel={{ config.microk8s.version }}/stable"
+    register: microk8s_installation
+    changed_when: microk8s_installation.stdout.find('installed') != -1
+
+  - name: Add local user to microk8s group
+    user:
+      name: r4iny
+      groups: microk8s
+      append: true
+
+
+- name: Get the first node in a node list and consider it the head node
+  hosts: cluster
+  gather_facts: false
+  serial: 1
+  tasks:
+  - name: "Join {{ inventory_hostname }} node"
+    when: inventory_hostname != groups['cluster'][0]
+    block:
+    - name: "Get join command from head node"
+      shell: echo "/snap/bin/$(/snap/bin/microk8s add-node | grep 'microk8s join' | head -n 1)"
+      register: join_node_command
+      delegate_to: "{{ groups['cluster'][0] }}"
+
+    - name: Join node to cluster
+      shell: "{{ join_node_command.stdout }}"
+
+
+- name: Get kubeconfig from the head node
+  hosts: cluster
+  gather_facts: false
+  tasks:
+  - name: Get kubeconfig from head node
+    run_once: true
+    block:
+    - name: Read kubeconfig from head node
+      delegate_to: "{{ groups['cluster'][0] }}"
+      shell: /snap/bin/microk8s config
+      register: kubeconfig
+
+    - name: Create artifacts directory
+      delegate_to: localhost
+      file:
+        path: "{{ playbook_dir }}/../../artifacts"
+        state: directory
+        mode: 0755
+
+    - name: Copy kubeconfig to local machine
+      delegate_to: localhost
+      copy:
+        content: "{{ kubeconfig.stdout }}"
+        dest: "{{ playbook_dir }}/../../artifacts/kubeconfig"
+        mode: 0600
