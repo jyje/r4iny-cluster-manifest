@@ -1,0 +1,61 @@
+---
+- name: Install kubectl and krew on localhost
+  hosts: localhost
+  gather_facts: true
+  tasks:
+
+  - name: Install kubectl
+    block:
+    - name: Install kubectl using Homebrew (Darwin)
+      homebrew:
+        name: kubectl
+        state: latest
+      when: ansible_facts['os_family'] == 'Darwin'
+
+    - name: Install kubectl using apt (Debian)
+      apt:
+        name: kubectl
+        state: latest
+        update_cache: yes
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install krew and configure PATH
+      block:
+      - name: Install krew using Homebrew (Darwin)
+        homebrew:
+          name: krew
+          state: latest
+        when: ansible_facts['os_family'] == 'Darwin'
+      
+      - name: Install krew using curl (Debian)
+        shell: |
+          (
+            set -x; cd "$(mktemp -d)" &&
+            curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew.tar.gz" &&
+            tar zxvf krew.tar.gz &&
+            KREW=./krew-"$(uname | tr '[:upper:]' '[:lower:]')_amd64" &&
+            "$KREW" install krew
+          )
+        when: ansible_facts['os_family'] == 'Debian'
+
+      - name: Append krew PATH to .zshrc
+        blockinfile:
+          path: "{{ ansible_env.HOME }}/.zshrc"
+          block: |
+            # for kubectl krew
+            export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+          create: no
+        when: ansible_facts['os_family'] in ['Darwin', 'Debian']
+
+      - name: Append krew PATH to .bashrc
+        blockinfile:
+          path: "{{ ansible_env.HOME }}/.bashrc"
+          block: |
+            # for kubectl krew
+            export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+          create: no
+        when: ansible_facts['os_family'] in ['Darwin', 'Debian']
+
+    - name: Install konfig using krew
+      command:
+        cmd: kubectl krew install konfig
