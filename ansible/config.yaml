@@ -1,2 +1,10 @@
 microk8s:
   version: 1.28
+  addons:
+  - dns
+  - metrics-server
+  - observability
+  - metallb:10.64.140.43-10.64.140.49
+  - ingress
+pi-hole:
+  installer_url: https://install.pi-hole.net

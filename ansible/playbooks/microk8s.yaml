@@ -125,3 +125,15 @@
         dest: "$HOME/.kube/config"
         mode: 0600
       when: not kubeconfig_file.stat.exists
+
+
+- name: Enable microk8s addons
+  hosts: cluster
+  gather_facts: false
+  serial: 1
+  tasks:
+  - name: Enable microk8s addons on the head node
+    when: inventory_hostname == groups['cluster'][0]
+    delegate_to: "{{ groups['cluster'][0] }}"
+    shell: /snap/bin/microk8s enable {{ item }}
+    loop: "{{ config.microk8s.addons }}"
