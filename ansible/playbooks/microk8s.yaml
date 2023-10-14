@@ -64,7 +64,7 @@
       append: true
 
 
-- name: Get the first node in a node list and consider it the head node
+- name: Join nodes to the cluster
   hosts: cluster
   gather_facts: false
   serial: 1
@@ -77,11 +77,11 @@
       register: join_node_command
       delegate_to: "{{ groups['cluster'][0] }}"
 
-    - name: Join node to cluster
+    - name: Join each node to the cluster
       shell: "{{ join_node_command.stdout }}"
 
 
-- name: Get kubeconfig from the head node
+- name: Set kubeconfig for bootstrap
   hosts: cluster
   gather_facts: false
   tasks:
@@ -93,16 +93,35 @@
       shell: /snap/bin/microk8s config
       register: kubeconfig
 
-    - name: Create artifacts directory
+    - name: Ensure destination directory exists
       delegate_to: localhost
       file:
-        path: "{{ playbook_dir }}/../../artifacts"
+        path: "$HOME/.kube/kubeconfigs"
         state: directory
         mode: 0755
 
-    - name: Copy kubeconfig to local machine
+    - name: Copy kubeconfig to bootstrap
       delegate_to: localhost
       copy:
         content: "{{ kubeconfig.stdout }}"
-        dest: "{{ playbook_dir }}/../../artifacts/kubeconfig"
+        dest: "$HOME/.kube/kubeconfigs/r4spi.kubeconfig"
         mode: 0600
+
+    - name: Check if $HOME/.kube/config exists
+      delegate_to: localhost
+      stat:
+        path: "$HOME/.kube/config"
+      register: kubeconfig_file
+
+    - name: Merge kubeconfig to bootstrap if the config exists
+      delegate_to: localhost
+      shell: kubectl konfig merge $HOME/.kube/kubeconfigs/r4spi.kubeconfig $HOME/.kube/kubeconfigs/config > $HOME/.kube/config
+      when: kubeconfig_file.stat.exists
+
+    - name: Copy kubeconfig to bootstrap if the config does not exist
+      delegate_to: localhost
+      copy:
+        content: "{{ kubeconfig.stdout }}"
+        dest: "$HOME/.kube/config"
+        mode: 0600
+      when: not kubeconfig_file.stat.exists
